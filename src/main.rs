@@ -1,4 +1,5 @@
 #[macro_use] extern crate lazy_static;
+#[macro_use] extern crate clap;
 extern crate walkdir;
 use std::fs::metadata;
 use regex::Regex;
@@ -7,47 +8,96 @@ use walkdir::{WalkDir, DirEntry};
 use std::path::{Path, PathBuf};
 
 fn main() {
-    let meta = false;
-    let name = false;
-    let verbose = true;
-    let source = "input";
-    let dest = Path::new("output");
-    let structure = OutputDirStructure::Swedish;
-
-    WalkDir::new(source)
+    let (source, dest, meta, name, verbose, clean, structure) = parse_args();
+    move_and_sort(&source, &dest, meta, name, verbose, structure);
+    if clean {
+        WalkDir::new(source)
         .follow_links(true)
+        .min_depth(1)
         .into_iter()
         .filter_entry(direntry_is_not_hidden)
-        .filter_map(|v| v.ok()).for_each(|x: DirEntry| {
-            if !x.file_type().is_file() { return; }
+        .filter_map(|v| v.ok())
+        .filter(|v| v.file_type().is_dir())
+        .for_each(|x: DirEntry| {
+            match std::fs::remove_dir(x.path()) {
+                Result::Ok(_) => if verbose { println!("{}: Removed empty directory", x.path().display()) },
+                Result::Err(_) => (),
+            }
+        });
+    }
+}
+
+fn parse_args() -> (String, String, bool, bool, bool, bool, OutputDirStructure) {
+    let matches = clap_app!(image_importer => 
+        (version: "1.0")
+        (author: "Aggrathon")
+        (about: "Parses the filenames and metadata for all files in a directory (recursively) and moves them to another directory with a temporal hierarchy")
+        (@arg verbose: -v --verbose "Prints messages for successful imports")
+        (@arg name: -n --name "Only get the dates from the filenames")
+        (@arg meta: -m --meta "Only get the dates from the metadata")
+        (@arg clean: -c --clean "Remove empty directories from the input")
+        (@arg STRUCTURE:default_value[Y_YM] possible_value[Y_YM Y_M YM Y_Mswe Y_Meng] -s --structure +takes_value "The temporal structure to use")
+        (@arg INPUT: +required "Sets the input directory")
+        (@arg OUTPUT: +required "Sets the output directory")
+    ).get_matches();
+    (
+        matches.value_of("INPUT").unwrap().to_string(),
+        matches.value_of("OUTPUT").unwrap().to_string(),
+        matches.is_present("meta"),
+        matches.is_present("name"),
+        matches.is_present("verbose"),
+        matches.is_present("clean"),
+        match matches.value_of("STRUCTURE").unwrap() {
+            "Y_M" => OutputDirStructure::Month,
+            "YM" => OutputDirStructure::FlatYearMonth,
+            "Y_YM" => OutputDirStructure::YearMonth,
+            "Y_Mswe" => OutputDirStructure::Swedish,
+            "Y_Meng" => OutputDirStructure::English,
+            _ => OutputDirStructure::YearMonth
+        }
+    )
+}
+
+fn move_and_sort(source: &String, dest: &String, meta: bool, name: bool, verbose: bool, structure: OutputDirStructure) {
+    WalkDir::new(source)
+        .follow_links(true)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(direntry_is_not_hidden)
+        .filter_map(|v| v.ok())
+        .filter(|v| v.file_type().is_file())
+        .for_each(|x: DirEntry| {
+            let path = x.path();
             let date = if name && !meta {
                 get_date_from_name(&x.file_name().to_string_lossy())
             } else if name == meta{
                 let tmp = get_date_from_name(&x.file_name().to_string_lossy());
-                if tmp.is_ok() { tmp } else { get_date_from_meta(x.path()) }
+                if tmp.is_ok() { tmp } else { get_date_from_meta(&path) }
             } else {
-                get_date_from_meta(x.path())
+                get_date_from_meta(&path)
             };
             match date {
                 Ok(d) => {
-                    let mut target = PathBuf::from(dest);
+                    let mut target = PathBuf::from(&dest);
                     target.push(get_output_dir(&structure, d));
                     match std::fs::create_dir_all(&target) {
                         Result::Ok(_) => {
                             target.push(x.file_name());
-                            if target.exists() {
+                            if target == path {
+                                if verbose { println!("{}: Already sorted", x.path().display()); }
+                            } else if target.exists() {
                                 println!("{}: Target already exists", x.path().display());
                             } else {
-                                match std::fs::rename(x.path(), &target) {
-                                    Result::Ok(_) => if verbose {println!("{}: Moved to {}", x.path().display(), target.display())},
-                                    Result::Err(e) => println!("{}: {}", x.path().display(), e)
+                                match std::fs::rename(&path, &target) {
+                                    Result::Ok(_) => if verbose { println!("{}: Moved to {}", path.display(), target.display()) },
+                                    Result::Err(e) => println!("{}: {}", path.display(), e)
                                 }
                             }
                         },
-                        Result::Err(e) => println!("{}: {}", x.path().display(), e),
+                        Result::Err(e) => println!("{}: {}", path.display(), e),
                     }
                 },
-                Err(e) => println!("{}: {}", x.path().display(), e)
+                Err(e) => println!("{}: {}", path.display(), e)
             };
     });
 }
@@ -212,5 +262,5 @@ fn get_output_dir(structure: &OutputDirStructure, date: DateTime<Utc>) -> String
 }
 
 fn direntry_is_not_hidden(e: &DirEntry) -> bool {
-    e.file_name().to_str().map(|s| e.depth() == 0 || !s.starts_with(".")).unwrap_or(false)
+    e.file_name().to_str().map(|s| !s.starts_with(".")).unwrap_or(false)
 }
