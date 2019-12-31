@@ -7,7 +7,8 @@ The canonical use-case is to import images from cameras or phones, but it could 
 ## Usage
 
 To import all files from the input directory to the output directory use:  
-```image_importer input output```  
+```image_importer input output```
+
 To learn more about all options available use:  
 ```image_importer --help```
 
