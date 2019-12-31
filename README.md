@@ -6,9 +6,10 @@ The canonical use-case is to import images from cameras or phones, but it could 
 
 ## Usage
 
-Use `image_importer input output` to import all files from the input directory to the output directory.  
-Use `image_importer --help` to learn more about all options available.
-
+To import all files from the input directory to the output directory use:  
+```image_importer input output```  
+To learn more about all options available use:  
+```image_importer --help```
 
 ## Date Parsing
 
