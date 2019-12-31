@@ -1,7 +1,7 @@
 # Image Importer
 
 Parses the filenames and metadata for all files in a directory (recursively) and moves them to another directory with a temporal hierarchy.
-The canonical use-case is to import images from cameras or phones, but it could also be used for organising an existing library, or other types of files than images.
+The canonical use-case is to import images from cameras or phones, but it could also be used for organising an existing library, or on other types of files than images.
 
 
 ## Usage
