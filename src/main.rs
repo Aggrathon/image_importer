@@ -8,8 +8,8 @@ use walkdir::{WalkDir, DirEntry};
 use std::path::{Path, PathBuf};
 
 fn main() {
-    let (source, dest, meta, name, verbose, clean, structure) = parse_args();
-    move_and_sort(&source, &dest, meta, name, verbose, structure);
+    let (source, dest, meta, name, year, verbose, clean, structure) = parse_args();
+    move_and_sort(&source, &dest, meta, name, year, verbose, structure);
     if clean {
         WalkDir::new(source)
         .follow_links(true)
@@ -27,7 +27,7 @@ fn main() {
     }
 }
 
-fn parse_args() -> (String, String, bool, bool, bool, bool, OutputDirStructure) {
+fn parse_args() -> (String, String, bool, bool, i32, bool, bool, OutputDirStructure) {
     let matches = clap_app!(image_importer => 
         (version: "1.0")
         (author: "Aggrathon")
@@ -36,7 +36,8 @@ fn parse_args() -> (String, String, bool, bool, bool, bool, OutputDirStructure) 
         (@arg name: -n --name "Only get the dates from the filenames")
         (@arg meta: -m --meta "Only get the dates from the metadata")
         (@arg clean: -c --clean "Remove empty directories from the input")
-        (@arg STRUCTURE:default_value[Y_YM] possible_value[Y_YM Y_M YM Y_Mswe Y_Meng] -s --structure +takes_value "The temporal structure to use")
+        (@arg STRUCTURE: default_value[Y_YM] possible_value[Y_YM Y_M YM Y_Mswe Y_Meng] -s --structure +takes_value "The temporal structure to use")
+        (@arg YEAR: -y --year +takes_value "The oldest possible year")
         (@arg INPUT: +required "Sets the input directory")
         (@arg OUTPUT: +required "Sets the output directory")
     ).get_matches();
@@ -45,6 +46,7 @@ fn parse_args() -> (String, String, bool, bool, bool, bool, OutputDirStructure) 
         matches.value_of("OUTPUT").unwrap().to_string(),
         matches.is_present("meta"),
         matches.is_present("name"),
+        if matches.is_present("YEAR") { value_t!(matches, "YEAR", i32).unwrap_or_else(|e| e.exit()) } else { -1 },
         matches.is_present("verbose"),
         matches.is_present("clean"),
         match matches.value_of("STRUCTURE").unwrap() {
@@ -58,7 +60,7 @@ fn parse_args() -> (String, String, bool, bool, bool, bool, OutputDirStructure) 
     )
 }
 
-fn move_and_sort(source: &String, dest: &String, meta: bool, name: bool, verbose: bool, structure: OutputDirStructure) {
+fn move_and_sort(source: &String, dest: &String, meta: bool, name: bool, min_year: i32, verbose: bool, structure: OutputDirStructure) {
     WalkDir::new(source)
         .follow_links(true)
         .min_depth(1)
@@ -69,9 +71,9 @@ fn move_and_sort(source: &String, dest: &String, meta: bool, name: bool, verbose
         .for_each(|x: DirEntry| {
             let path = x.path();
             let date = if name && !meta {
-                get_date_from_name(&x.file_name().to_string_lossy())
+                get_date_from_name(&x.file_name().to_string_lossy(), min_year)
             } else if name == meta{
-                let tmp = get_date_from_name(&x.file_name().to_string_lossy());
+                let tmp = get_date_from_name(&x.file_name().to_string_lossy(), min_year);
                 if tmp.is_ok() { tmp } else { get_date_from_meta(&path) }
             } else {
                 get_date_from_meta(&path)
@@ -108,8 +110,10 @@ enum DateError {
     InvalidDate,
     InvalidDay,
     InvalidMonth,
+    AncientDate,
     FutureDate,
     PatternMismatch,
+    InvalidMetadata,
     IoError(std::io::Error)
 }
 
@@ -120,8 +124,10 @@ impl std::fmt::Display for DateError {
             DateError::InvalidDate => write!(f, "Invalid date"),
             DateError::InvalidDay => write!(f, "Invalid day"),
             DateError::InvalidMonth => write!(f, "Invalid month"),
+            DateError::AncientDate => write!(f, "Year is too ancient"),
             DateError::FutureDate => write!(f, "Future date"),
             DateError::PatternMismatch => write!(f, "Date pattern not found"),
+            DateError::InvalidMetadata => write!(f, "Metadata not found"),
             DateError::IoError(ioe) => ioe.fmt(f),
         }
     }
@@ -152,12 +158,17 @@ impl std::convert::From<std::num::ParseIntError> for DateError {
 
 fn get_date_from_meta(file: &Path) -> Result<DateTime<Utc>, DateError> {
     let meta = metadata(file)?;
-    let date = meta.created().or(meta.modified()).or(meta.accessed())?;
-    let dt: DateTime<Utc> = DateTime::from(date);
-    Result::Ok(dt)
+    let date: Option<std::time::SystemTime> = meta.created().into_iter()
+        .chain(meta.modified().into_iter())
+        .chain(meta.accessed().into_iter())
+        .min();
+    match date {
+        Some(d) => Result::Ok(DateTime::from(d)),
+        None => Err(DateError::InvalidMetadata)
+    }
 }
 
-fn get_date_from_name(file: &str) -> Result<DateTime<Utc>, DateError> {
+fn get_date_from_name(file: &str, min_year: i32) -> Result<DateTime<Utc>, DateError> {
     lazy_static! {
         static ref RGXS1: [Regex; 6] = [
             Regex::new(r"(\d{4})-(\d{2})-(\d{2})").unwrap(),
@@ -179,7 +190,7 @@ fn get_date_from_name(file: &str) -> Result<DateTime<Utc>, DateError> {
     let mut date: Result<DateTime<Utc>, DateError> = Err(DateError::PatternMismatch);
     for rgx in RGXS1.iter() {
         for cap in rgx.captures_iter(file) {
-            date = parse_time(&cap[1], &cap[2], &cap[3]);
+            date = parse_time(&cap[1], &cap[2], &cap[3], min_year);
             if date.is_ok() {
                 return date;
             }
@@ -187,7 +198,7 @@ fn get_date_from_name(file: &str) -> Result<DateTime<Utc>, DateError> {
     }
     for rgx in RGXS2.iter() {
         for cap in rgx.captures_iter(file) {
-            date = parse_time(&cap[3], &cap[2], &cap[1]);
+            date = parse_time(&cap[3], &cap[2], &cap[1], min_year);
             if date.is_ok() {
                 return date;
             }
@@ -196,7 +207,7 @@ fn get_date_from_name(file: &str) -> Result<DateTime<Utc>, DateError> {
     date
 }
 
-fn parse_time(year: &str, month: &str, day: &str) -> Result<DateTime<Utc>, DateError> {
+fn parse_time(year: &str, month: &str, day: &str, min_year: i32) -> Result<DateTime<Utc>, DateError> {
     lazy_static! {
         static ref NOW: DateTime<Utc> = Utc::now();
     }
@@ -208,6 +219,9 @@ fn parse_time(year: &str, month: &str, day: &str) -> Result<DateTime<Utc>, DateE
     }
     if day == 0 || day > 31 {
         return Err(DateError::InvalidDay);
+    }
+    if year < min_year {
+        return Err(DateError::AncientDate);
     }
     let date = Utc.ymd_opt(year, month, day).single().ok_or(DateError::InvalidDate)?.and_hms(0, 0, 1);
     if date > *NOW {

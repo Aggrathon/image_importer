@@ -14,19 +14,19 @@ To learn more about all options available use:
 
 ## Date Parsing
 
-By default the software first parses the filenames, and then falls back to metadata (created > modified > accessed).
+By default the software first parses the filenames (first match), and then falls back to metadata (oldest date).
 With flags this can be changed to only consider filenames *or* metadata.
 
 The 19th of May 2019 can be recognised, if the filenames have any of these patterns:
 
-- \*20190519\*
 - \*2019-05-19\*
 - \*2019_05_19\*
+- \*20190519\*
 - \*2019 05 19\*
 - \*2019.05.19\*
-- \*19052019\*
 - \*19-05-2019\*
 - \*19_05_2019\*
+- \*19052019\*
 - \*19 05 2019\*
 - \*19.05.2019\*
 
