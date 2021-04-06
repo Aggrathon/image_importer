@@ -156,20 +156,20 @@ fn get_date_from_meta(file: &Path) -> Result<DateTime<Utc>, DateError> {
 fn get_date_from_name(file: &str, min_year: i32) -> Result<DateTime<Utc>, DateError> {
     lazy_static! {
         static ref RGXS1: [Regex; 6] = [
-            Regex::new(r"(\d{4})-(\d{2})-(\d{2})").unwrap(),
-            Regex::new(r"(\d{4})_(\d{2})_(\d{2})").unwrap(),
-            Regex::new(r"(\d{4})(\d{2})(\d{2})").unwrap(),
-            Regex::new(r"(\d{4}) (\d{2}) (\d{2})").unwrap(),
-            Regex::new(r"(\d{4}).(\d{2}).(\d{2})").unwrap(),
-            Regex::new(r"(\d{4})/(\d{2})/(\d{2})").unwrap()
+            Regex::new(r"(\d{4})-([0-1]\d)-([0-3]\d)").unwrap(),
+            Regex::new(r"(\d{4})_([0-1]\d)_([0-3]\d)").unwrap(),
+            Regex::new(r"(\d{4})([0-1]\d)([0-3]\d)").unwrap(),
+            Regex::new(r"(\d{4}) ([0-1]\d) ([0-3]\d)").unwrap(),
+            Regex::new(r"(\d{4}).([0-1]\d).([0-3]\d)").unwrap(),
+            Regex::new(r"(\d{4})/([0-1]\d)/([0-3]\d)").unwrap(),
         ];
         static ref RGXS2: [Regex; 6] = [
-            Regex::new(r"(\d{2})-(\d{2})-(\d{4})").unwrap(),
-            Regex::new(r"(\d{2})_(\d{2})_(\d{4})").unwrap(),
-            Regex::new(r"(\d{2})(\d{2})(\d{4})").unwrap(),
-            Regex::new(r"(\d{2}) (\d{2}) (\d{4})").unwrap(),
-            Regex::new(r"(\d{2}).(\d{2}).(\d{4})").unwrap(),
-            Regex::new(r"(\d{2})/(\d{2})/(\d{4})").unwrap()
+            Regex::new(r"([0-3]\d)-([0-1]\d)-(\d{4})").unwrap(),
+            Regex::new(r"([0-3]\d)_([0-1]\d)_(\d{4})").unwrap(),
+            Regex::new(r"([0-3]\d)([0-1]\d)(\d{4})").unwrap(),
+            Regex::new(r"([0-3]\d) ([0-1]\d) (\d{4})").unwrap(),
+            Regex::new(r"([0-3]\d).([0-1]\d).(\d{4})").unwrap(),
+            Regex::new(r"([0-3]\d)/([0-1]\d)/(\d{4})").unwrap()
         ];
     }
     let mut date: Result<DateTime<Utc>, DateError> = Err(DateError::PatternMismatch);
