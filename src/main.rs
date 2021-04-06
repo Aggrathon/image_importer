@@ -1,67 +1,150 @@
-#[macro_use] extern crate lazy_static;
-#[macro_use] extern crate clap;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate clap;
 extern crate walkdir;
-use std::fs::metadata;
+use chrono::{DateTime, Datelike, TimeZone, Utc};
+use clap::{App, Arg};
 use regex::Regex;
-use chrono::{DateTime, Utc, TimeZone, Datelike};
-use walkdir::{WalkDir, DirEntry};
+use std::cmp::min;
+use std::fs::metadata;
 use std::path::{Path, PathBuf};
+use walkdir::{DirEntry, WalkDir};
 
 fn main() {
-    let (source, dest, meta, name, year, verbose, clean, structure) = parse_args();
-    move_and_sort(&source, &dest, meta, name, year, verbose, structure);
-    if clean {
-        WalkDir::new(source)
-        .follow_links(true)
-        .min_depth(1)
-        .into_iter()
-        .filter_entry(direntry_is_not_hidden)
-        .filter_map(|v| v.ok())
-        .filter(|v| v.file_type().is_dir())
-        .for_each(|x: DirEntry| {
-            match std::fs::remove_dir(x.path()) {
-                Result::Ok(_) => if verbose { println!("{}: Removed empty directory", x.path().display()) },
-                Result::Err(_) => (),
-            }
-        });
+    let config = parse_args();
+    move_and_sort(&config);
+    if config.clean {
+        clean_empty_dirs(config.input, config.verbose)
     }
 }
 
-fn parse_args() -> (String, String, bool, bool, i32, bool, bool, OutputDirStructure) {
-    let matches = clap_app!(image_importer => 
-        (version: "1.0")
-        (author: "Aggrathon")
-        (about: "Parses the filenames and metadata for all files in a directory (recursively) and moves them to another directory with a temporal hierarchy")
-        (@arg verbose: -v --verbose "Prints messages for successful imports")
-        (@arg name: -n --name "Only get the dates from the filenames")
-        (@arg meta: -m --meta "Only get the dates from the metadata")
-        (@arg clean: -c --clean "Remove empty directories from the input")
-        (@arg STRUCTURE: default_value[Y_YM] possible_value[Y_YM Y_M YM Y_Mswe Y_Meng] -s --structure +takes_value "The temporal structure to use")
-        (@arg YEAR: -y --year +takes_value "The oldest possible year")
-        (@arg INPUT: +required "Sets the input directory")
-        (@arg OUTPUT: +required "Sets the output directory")
-    ).get_matches();
-    (
-        matches.value_of("INPUT").unwrap().to_string(),
-        matches.value_of("OUTPUT").unwrap().to_string(),
-        matches.is_present("meta"),
-        matches.is_present("name"),
-        if matches.is_present("YEAR") { value_t!(matches, "YEAR", i32).unwrap_or_else(|e| e.exit()) } else { -1 },
-        matches.is_present("verbose"),
-        matches.is_present("clean"),
-        match matches.value_of("STRUCTURE").unwrap() {
-            "Y_M" => OutputDirStructure::Month,
-            "YM" => OutputDirStructure::FlatYearMonth,
-            "Y_YM" => OutputDirStructure::YearMonth,
-            "Y_Mswe" => OutputDirStructure::Swedish,
-            "Y_Meng" => OutputDirStructure::English,
-            _ => OutputDirStructure::YearMonth
-        }
-    )
+enum Language {
+    None,
+    English,
+    Swedish,
 }
 
-fn move_and_sort(source: &String, dest: &String, meta: bool, name: bool, min_year: i32, verbose: bool, structure: OutputDirStructure) {
-    WalkDir::new(source)
+struct Config {
+    input: PathBuf,
+    output: PathBuf,
+    verbose: bool,
+    name: bool,
+    meta: bool,
+    clean: bool,
+    min_year: i32,
+    year: bool,
+    month: Language,
+    flat: bool,
+}
+
+fn parse_args() -> Config {
+    let args = App::new(crate_name!())
+        .version(crate_version!())
+        .about(crate_description!())
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .long("verbose")
+                .help("Prints messages for successful imports"),
+        )
+        .arg(
+            Arg::with_name("name")
+                .long("name")
+                .help("Only get the dates from the filenames"),
+        )
+        .arg(
+            Arg::with_name("meta")
+                .long("meta")
+                .help("Only get the dates from the metadata"),
+        )
+        .arg(
+            Arg::with_name("clean")
+                .short("c")
+                .long("clean")
+                .help("Remove empty directories from the input"),
+        )
+        .arg(
+            Arg::with_name("limit")
+                .short("l")
+                .long("limit")
+                .help("The oldest possible year")
+                .takes_value(true)
+                .default_value("1950")
+                .validator(|v| {
+                    v.parse::<i32>()
+                        .map(|_| ())
+                        .map_err(|_| "Must be a number".to_string())
+                }),
+        )
+        .arg(
+            Arg::with_name("year")
+                .short("y")
+                .long("year")
+                .help("Add year to the names of the monthly directories"),
+        )
+        .arg(
+            Arg::with_name("month")
+                .short("y")
+                .long("month")
+                .help("Add month names to the monthly directories")
+                .takes_value(true)
+                .value_name("LANGUAGE")
+                .possible_value("en")
+                .possible_value("swe"),
+        )
+        .arg(
+            Arg::with_name("flat")
+                .short("f")
+                .long("flat")
+                .help("Flatten the directory structure (combine year and month)")
+                .requires("year"),
+        )
+        .arg(
+            Arg::with_name("INPUT")
+                .takes_value(true)
+                .required(true)
+                .value_name("INPUT")
+                .help("The input directory"),
+        )
+        .arg(
+            Arg::with_name("OUPUT")
+                .takes_value(true)
+                .required(true)
+                .value_name("OUPUT")
+                .help("The ouput directory"),
+        )
+        .get_matches();
+    let meta = args.is_present("meta");
+    let name = args.is_present("name");
+    Config {
+        input: PathBuf::from(args.value_of("INPUT").unwrap()),
+        output: PathBuf::from(args.value_of("OUTPUT").unwrap()),
+        verbose: args.is_present("verbose"),
+        name: !meta || name,
+        meta: !name || meta,
+        clean: args.is_present("clean"),
+        min_year: args
+            .value_of("limit")
+            .unwrap()
+            .parse::<i32>()
+            .expect("The year limit must be a number"),
+        year: args.is_present("year"),
+        month: if args.is_present("month") {
+            match args.value_of("month").unwrap() {
+                "en" => Language::English,
+                "swe" => Language::Swedish,
+                _ => panic!("Unknown language for month names"),
+            }
+        } else {
+            Language::None
+        },
+        flat: args.is_present("flat"),
+    }
+}
+
+fn move_and_sort(config: &Config) {
+    WalkDir::new(&config.input)
         .follow_links(true)
         .min_depth(1)
         .into_iter()
@@ -70,38 +153,56 @@ fn move_and_sort(source: &String, dest: &String, meta: bool, name: bool, min_yea
         .filter(|v| v.file_type().is_file())
         .for_each(|x: DirEntry| {
             let path = x.path();
-            let date = if name && !meta {
-                get_date_from_name(&x.file_name().to_string_lossy(), min_year)
-            } else if name == meta{
-                let tmp = get_date_from_name(&x.file_name().to_string_lossy(), min_year);
-                if tmp.is_ok() { tmp } else { get_date_from_meta(&path) }
+            let filedate = if config.name {
+                get_date_from_name(&x.file_name().to_string_lossy(), config.min_year)
             } else {
+                Err(DateError::NotUsed)
+            };
+            let metadate = if config.meta {
                 get_date_from_meta(&path)
+            } else {
+                Err(DateError::NotUsed)
+            };
+            let date = match filedate {
+                Ok(fd) => match metadate {
+                    Ok(md) => Ok(min(md, fd)),
+                    Err(_) => Ok(fd),
+                },
+                Err(_) => metadate,
             };
             match date {
                 Ok(d) => {
-                    let mut target = PathBuf::from(&dest);
-                    target.push(get_output_dir(&structure, d));
+                    let mut target = config.output.join(get_output_dir(&config, d));
                     match std::fs::create_dir_all(&target) {
                         Result::Ok(_) => {
                             target.push(x.file_name());
                             if target == path {
-                                if verbose { println!("{}: Already sorted", x.path().display()); }
+                                if config.verbose {
+                                    println!("{}: Already sorted", x.path().display());
+                                }
                             } else if target.exists() {
                                 println!("{}: Target already exists", x.path().display());
                             } else {
                                 match std::fs::rename(&path, &target) {
-                                    Result::Ok(_) => if verbose { println!("{}: Moved to {}", path.display(), target.display()) },
-                                    Result::Err(e) => println!("{}: {}", path.display(), e)
+                                    Result::Ok(_) => {
+                                        if config.verbose {
+                                            println!(
+                                                "{}: Moved to {}",
+                                                path.display(),
+                                                target.display()
+                                            )
+                                        }
+                                    }
+                                    Result::Err(e) => println!("{}: {}", path.display(), e),
                                 }
                             }
-                        },
+                        }
                         Result::Err(e) => println!("{}: {}", path.display(), e),
                     }
-                },
-                Err(e) => println!("{}: {}", path.display(), e)
+                }
+                Err(e) => println!("{}: {}", path.display(), e),
             };
-    });
+        });
 }
 
 #[derive(Debug)]
@@ -114,7 +215,8 @@ enum DateError {
     FutureDate,
     PatternMismatch,
     InvalidMetadata,
-    IoError(std::io::Error)
+    IoError(std::io::Error),
+    NotUsed,
 }
 
 impl std::fmt::Display for DateError {
@@ -129,6 +231,7 @@ impl std::fmt::Display for DateError {
             DateError::PatternMismatch => write!(f, "Date pattern not found"),
             DateError::InvalidMetadata => write!(f, "Metadata not found"),
             DateError::IoError(ioe) => ioe.fmt(f),
+            &DateError::NotUsed => write!(f, "This date should not be used"),
         }
     }
 }
@@ -138,7 +241,7 @@ impl std::error::Error for DateError {
         match self {
             DateError::ParseError(pie) => Some(pie),
             DateError::IoError(ioe) => Some(ioe),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -155,16 +258,17 @@ impl std::convert::From<std::num::ParseIntError> for DateError {
     }
 }
 
-
 fn get_date_from_meta(file: &Path) -> Result<DateTime<Utc>, DateError> {
     let meta = metadata(file)?;
-    let date: Option<std::time::SystemTime> = meta.created().into_iter()
+    let date: Option<std::time::SystemTime> = meta
+        .created()
+        .into_iter()
         .chain(meta.modified().into_iter())
         .chain(meta.accessed().into_iter())
         .min();
     match date {
         Some(d) => Result::Ok(DateTime::from(d)),
-        None => Err(DateError::InvalidMetadata)
+        None => Err(DateError::InvalidMetadata),
     }
 }
 
@@ -207,7 +311,12 @@ fn get_date_from_name(file: &str, min_year: i32) -> Result<DateTime<Utc>, DateEr
     date
 }
 
-fn parse_time(year: &str, month: &str, day: &str, min_year: i32) -> Result<DateTime<Utc>, DateError> {
+fn parse_time(
+    year: &str,
+    month: &str,
+    day: &str,
+    min_year: i32,
+) -> Result<DateTime<Utc>, DateError> {
     lazy_static! {
         static ref NOW: DateTime<Utc> = Utc::now();
     }
@@ -223,7 +332,11 @@ fn parse_time(year: &str, month: &str, day: &str, min_year: i32) -> Result<DateT
     if year < min_year {
         return Err(DateError::AncientDate);
     }
-    let date = Utc.ymd_opt(year, month, day).single().ok_or(DateError::InvalidDate)?.and_hms(0, 0, 1);
+    let date = Utc
+        .ymd_opt(year, month, day)
+        .single()
+        .ok_or(DateError::InvalidDate)?
+        .and_hms(0, 0, 1);
     if date > *NOW {
         Err(DateError::FutureDate)
     } else {
@@ -231,50 +344,75 @@ fn parse_time(year: &str, month: &str, day: &str, min_year: i32) -> Result<DateT
     }
 }
 
-enum OutputDirStructure {
-    Month, YearMonth, FlatYearMonth, Swedish, English
-}
-
-fn get_output_dir(structure: &OutputDirStructure, date: DateTime<Utc>) -> String {
+fn get_output_dir(config: &Config, date: DateTime<Utc>) -> String {
     let year = date.year();
     let month = date.month();
-    match structure {
-        OutputDirStructure::Month => format!("{}/{:02}", year, month),
-        OutputDirStructure::YearMonth => format!("{y}/{y}-{m:02}", y=year, m=month),
-        OutputDirStructure::FlatYearMonth => format!("{y}-{m:02}", y=year, m=month),
-        OutputDirStructure::Swedish => format!("{}/{:02} {}", year, month, match month {
-            1 => "Januari",
-            2 => "Februari",
-            3 => "Mars",
-            4 => "April",
-            5 => "Maj",
-            6 => "Juni",
-            7 => "Juli",
-            8 => "Augusti",
-            9 => "September",
-            10 => "October",
-            11 => "November",
-            12 => "December",
-            _ => "Okänd"
-        }),
-        OutputDirStructure::English => format!("{}/{:02} {}", year, month, match month {
-            1 => "January",
-            2 => "February",
-            3 => "March",
-            4 => "April",
-            5 => "May",
-            6 => "June",
-            7 => "July",
-            8 => "August",
-            9 => "September",
-            10 => "October",
-            11 => "November",
-            12 => "December",
-            _ => "Unknown"
-        }),
+    const MONTHS_EN: [&str; 12] = [
+        " January",
+        " February",
+        " March",
+        " April",
+        " May",
+        " June",
+        " July",
+        " August",
+        " September",
+        " October",
+        " November",
+        " December",
+    ];
+    const MONTHS_SWE: [&str; 12] = [
+        " Januari",
+        " Februari",
+        " Mars",
+        " April",
+        " Maj",
+        " Juni",
+        " Juli",
+        " Augusti",
+        " September",
+        " October",
+        " November",
+        " December",
+    ];
+    // SAFETY: months are 1-12
+    let name = unsafe {
+        match config.month {
+            Language::None => "",
+            Language::English => MONTHS_EN.get_unchecked((month - 1) as usize),
+            Language::Swedish => MONTHS_SWE.get_unchecked((month - 1) as usize),
+        }
+    };
+    if config.flat {
+        format!("{:04} {:02}{}", year, month, name)
+    } else if config.year {
+        format!("{:04}/{:04} {:02}{}", year, year, month, name)
+    } else {
+        format!("{:04}/{:02}{}", year, month, name)
     }
 }
 
+fn clean_empty_dirs<P: AsRef<Path>>(path: P, verbose: bool) {
+    WalkDir::new(path)
+        .follow_links(true)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(direntry_is_not_hidden)
+        .filter_map(|v| v.ok())
+        .filter(|v| v.file_type().is_dir())
+        .for_each(|x: DirEntry| match std::fs::remove_dir(x.path()) {
+            Result::Ok(_) => {
+                if verbose {
+                    println!("{}: Removed empty directory", x.path().display())
+                }
+            }
+            Result::Err(_) => (),
+        });
+}
+
 fn direntry_is_not_hidden(e: &DirEntry) -> bool {
-    e.file_name().to_str().map(|s| !s.starts_with(".")).unwrap_or(false)
+    e.file_name()
+        .to_str()
+        .map(|s| !s.starts_with("."))
+        .unwrap_or(false)
 }
