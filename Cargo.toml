@@ -3,10 +3,13 @@ name = "image_importer"
 version = "1.1.0"
 authors = ["Aggrathon <antonbjo@gmail.com>"]
 edition = "2018"
+description = "Parses filenames and metadata for files in one directory (recursively) and moves them to another directory with a temporal hierarchy"
+readme = "README.md"
+keywords = ["organistaion", "files", "application"]
 
 [dependencies]
-regex = "1.3"
+regex = { version = "1.4", features = ["perf-dfa"] }
 lazy_static = "1.4"
 chrono = "0.4"
 walkdir = "2.2"
-clap = "~2.33"
+clap = "2.33"
