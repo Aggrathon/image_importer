@@ -89,14 +89,14 @@ fn parse_args() -> Config {
                 .takes_value(true)
                 .required(true)
                 .value_name("INPUT")
-                .help("The input directory"),
+                .help("The source directory"),
         )
         .arg(
             Arg::with_name("OUPUT")
                 .takes_value(true)
                 .required(true)
                 .value_name("OUPUT")
-                .help("The ouput directory"),
+                .help("The destination directory"),
         )
         .get_matches();
     let meta = args.is_present("meta");

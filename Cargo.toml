@@ -1,9 +1,9 @@
 [package]
 name = "image_importer"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Aggrathon <antonbjo@gmail.com>"]
 edition = "2018"
-description = "Parses filenames and metadata for files in one directory (recursively) and moves them to another directory with a temporal hierarchy"
+description = "Move files from one directory to another and create a temporal hierarchy. The (creation) dates are based upon parsing filenames and reading file metadata. Files already existing in the destination (identified by filename) are left in their original location. This can, e.g., be used to import images from a camera (/phone)."
 readme = "README.md"
 keywords = ["organistaion", "files", "application"]
 
