@@ -160,7 +160,7 @@ fn get_date_from_name(file: &str, min_year: i32) -> Result<DateTime<Utc>, DateEr
             Regex::new(r"(\d{4})_([0-1]\d)_([0-3]\d)").unwrap(),
             Regex::new(r"(\d{4})([0-1]\d)([0-3]\d)").unwrap(),
             Regex::new(r"(\d{4}) ([0-1]\d) ([0-3]\d)").unwrap(),
-            Regex::new(r"(\d{4}).([0-1]\d).([0-3]\d)").unwrap(),
+            Regex::new(r"(\d{4})\.([0-1]\d)\.([0-3]\d)").unwrap(),
             Regex::new(r"(\d{4})/([0-1]\d)/([0-3]\d)").unwrap(),
         ];
         static ref RGXS2: [Regex; 6] = [
@@ -168,7 +168,7 @@ fn get_date_from_name(file: &str, min_year: i32) -> Result<DateTime<Utc>, DateEr
             Regex::new(r"([0-3]\d)_([0-1]\d)_(\d{4})").unwrap(),
             Regex::new(r"([0-3]\d)([0-1]\d)(\d{4})").unwrap(),
             Regex::new(r"([0-3]\d) ([0-1]\d) (\d{4})").unwrap(),
-            Regex::new(r"([0-3]\d).([0-1]\d).(\d{4})").unwrap(),
+            Regex::new(r"([0-3]\d)\.([0-1]\d)\.(\d{4})").unwrap(),
             Regex::new(r"([0-3]\d)/([0-1]\d)/(\d{4})").unwrap()
         ];
     }
