@@ -275,6 +275,7 @@ fn get_output_dir(config: &Config, date: DateTime<Utc>) -> String {
 
 pub fn clean_empty_dirs<P: AsRef<Path>>(path: P, verbose: bool) {
     WalkDir::new(path)
+        .contents_first(true)
         .follow_links(true)
         .min_depth(1)
         .into_iter()
