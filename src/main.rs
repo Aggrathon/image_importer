@@ -4,6 +4,8 @@ extern crate lazy_static;
 extern crate clap;
 
 mod importer;
+#[cfg(test)]
+mod test;
 
 use clap::{App, Arg};
 use importer::{clean_empty_dirs, move_and_sort, Config, Language};
@@ -30,11 +32,13 @@ fn parse_args() -> Config {
         .arg(
             Arg::with_name("name")
                 .long("name")
+                .short("n")
                 .help("Only get the dates from the filenames"),
         )
         .arg(
             Arg::with_name("meta")
                 .long("meta")
+                .short("e")
                 .help("Only get the dates from the metadata"),
         )
         .arg(
@@ -47,6 +51,7 @@ fn parse_args() -> Config {
             Arg::with_name("limit")
                 .short("l")
                 .long("limit")
+                .value_name("YEAR")
                 .help("The oldest possible year")
                 .takes_value(true)
                 .default_value("1950")
@@ -64,7 +69,7 @@ fn parse_args() -> Config {
         )
         .arg(
             Arg::with_name("month")
-                .short("y")
+                .short("m")
                 .long("month")
                 .help("Add month names to the monthly directories")
                 .takes_value(true)
