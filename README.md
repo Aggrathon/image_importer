@@ -57,4 +57,4 @@ rm -rf example1 example2
 
 To build this software: install Rust, download this project, and run `cargo build --release`.
 
-Alternatively, some prebuilt binaries can be found in [releases](/releases).
+Alternatively, some prebuilt binaries can be found in [releases](https://github.com/Aggrathon/image_importer/releases).
