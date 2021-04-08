@@ -155,21 +155,17 @@ fn get_date_from_meta(file: &Path) -> Result<DateTime<Utc>, DateError> {
 
 fn get_date_from_name(file: &str, min_year: i32) -> Result<DateTime<Utc>, DateError> {
     lazy_static! {
-        static ref RGXS1: [Regex; 6] = [
+        static ref RGXS1: [Regex; 4] = [
             Regex::new(r"(\d{4})-([0-1]\d)-([0-3]\d)").unwrap(),
             Regex::new(r"(\d{4})_([0-1]\d)_([0-3]\d)").unwrap(),
             Regex::new(r"(\d{4})([0-1]\d)([0-3]\d)").unwrap(),
             Regex::new(r"(\d{4}) ([0-1]\d) ([0-3]\d)").unwrap(),
-            Regex::new(r"(\d{4})\.([0-1]\d)\.([0-3]\d)").unwrap(),
-            Regex::new(r"(\d{4})/([0-1]\d)/([0-3]\d)").unwrap(),
         ];
-        static ref RGXS2: [Regex; 6] = [
+        static ref RGXS2: [Regex; 4] = [
             Regex::new(r"([0-3]\d)-([0-1]\d)-(\d{4})").unwrap(),
             Regex::new(r"([0-3]\d)_([0-1]\d)_(\d{4})").unwrap(),
             Regex::new(r"([0-3]\d)([0-1]\d)(\d{4})").unwrap(),
             Regex::new(r"([0-3]\d) ([0-1]\d) (\d{4})").unwrap(),
-            Regex::new(r"([0-3]\d)\.([0-1]\d)\.(\d{4})").unwrap(),
-            Regex::new(r"([0-3]\d)/([0-1]\d)/(\d{4})").unwrap()
         ];
     }
     let mut date: Result<DateTime<Utc>, DateError> = Err(DateError::PatternMismatch);
@@ -265,9 +261,9 @@ fn get_output_dir(config: &Config, date: DateTime<Utc>) -> String {
         }
     };
     if config.flat {
-        format!("{:04} {:02}{}", year, month, name)
+        format!("{:04}-{:02}{}", year, month, name)
     } else if config.year {
-        format!("{:04}/{:04} {:02}{}", year, year, month, name)
+        format!("{:04}/{:04}-{:02}{}", year, year, month, name)
     } else {
         format!("{:04}/{:02}{}", year, month, name)
     }
