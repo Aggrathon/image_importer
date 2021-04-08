@@ -45,11 +45,11 @@ The names of the directories can be customised with command line arguments:
 ## Example
 
 ```{sh}
-mkdir example
-touch example/2005-07-14.txt
-image_importer example example --clean --flat
-rm example/2005-07/2005-07-14.txt
-rm -rf example
+mkdir example1
+touch example1/2005-07-14.txt
+image_importer example1 example2 --clean --flat
+rm example2/2005-07/2005-07-14.txt
+rm -rf example1 example2
 ```
 
 
