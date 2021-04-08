@@ -28,11 +28,11 @@ fn integration_test() {
 
     config.year = true;
     move_and_sort(&config);
-    assert!(dir.path().join("1959/1959 03/1959-03-12.txt").exists());
+    assert!(dir.path().join("1959/1959-03/1959-03-12.txt").exists());
 
     config.flat = true;
     move_and_sort(&config);
-    assert!(dir.path().join("1959 03/1959-03-12.txt").exists());
+    assert!(dir.path().join("1959-03/1959-03-12.txt").exists());
 
     config.year = false;
     config.flat = false;

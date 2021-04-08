@@ -1,8 +1,11 @@
 use chrono::{DateTime, Datelike, TimeZone, Utc};
 use regex::Regex;
-use std::cmp::min;
-use std::fs::metadata;
-use std::path::{Path, PathBuf};
+use std::{cmp::min, fs::rename};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
+use std::{fs::copy, fs::create_dir_all, fs::metadata, fs::remove_file, io::ErrorKind};
 use walkdir::{DirEntry, WalkDir};
 
 pub enum Language {
@@ -32,10 +35,10 @@ pub fn move_and_sort(config: &Config) {
         .filter_entry(direntry_is_not_hidden)
         .filter_map(|v| v.ok())
         .filter(|v| v.file_type().is_file())
-        .for_each(|x: DirEntry| {
-            let path = x.path();
+        .for_each(|file: DirEntry| {
+            let path = file.path();
             let filedate = if config.name {
-                get_date_from_name(&x.file_name().to_string_lossy(), config.min_year)
+                get_date_from_name(&file.file_name().to_string_lossy(), config.min_year)
             } else {
                 Err(DateError::NotUsed)
             };
@@ -53,37 +56,54 @@ pub fn move_and_sort(config: &Config) {
             };
             match date {
                 Ok(d) => {
-                    let mut target = config.output.join(get_output_dir(&config, d));
-                    match std::fs::create_dir_all(&target) {
-                        Result::Ok(_) => {
-                            target.push(x.file_name());
-                            if target == path {
-                                if config.verbose {
-                                    println!("{}: Already sorted", x.path().display());
-                                }
-                            } else if target.exists() {
-                                println!("{}: Target already exists", x.path().display());
-                            } else {
-                                match std::fs::rename(&path, &target) {
-                                    Result::Ok(_) => {
-                                        if config.verbose {
-                                            println!(
-                                                "{}: Moved to {}",
-                                                path.display(),
-                                                target.display()
-                                            )
-                                        }
-                                    }
-                                    Result::Err(e) => println!("{}: {}", path.display(), e),
+                    let target = config.output.join(get_output_dir(&config, d));
+                    match move_file(&path, &target, file.file_name()) {
+                        Ok(b) => {
+                            if config.verbose {
+                                if b {
+                                    println!("{}: Moved to {}", path.display(), target.display());
+                                } else {
+                                    println!("{}: Already sorted", path.display());
                                 }
                             }
                         }
-                        Result::Err(e) => println!("{}: {}", path.display(), e),
-                    }
+                        Err(e) => println!("{}: {}", path.display(), e),
+                    };
                 }
                 Err(e) => println!("{}: {}", path.display(), e),
             };
         });
+}
+
+fn move_file<P1: AsRef<Path>, P2: AsRef<Path>, O: AsRef<OsStr>>(
+    src: P1,
+    dir: P2,
+    filename: O,
+) -> std::io::Result<bool> {
+    create_dir_all(dir.as_ref())?;
+    let dst = dir.as_ref().join(filename.as_ref());
+    if src.as_ref() == dst.as_path() {
+        Ok(false)
+    } else if dst.exists() {
+        Err(std::io::Error::new(
+            ErrorKind::AlreadyExists,
+            "Target already exists",
+        ))
+    } else {
+        match rename(src.as_ref(), &dst) {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                if let Some(17) = e.raw_os_error() {
+                    // The system cannot move the file to a different disk drive. (os error 17)
+                    copy(src.as_ref(), &dst)?;
+                    remove_file(src.as_ref())?;
+                    Ok(true)
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
