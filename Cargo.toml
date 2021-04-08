@@ -1,6 +1,6 @@
 [package]
 name = "image_importer"
-version = "1.2.0"
+version = "1.3.0"
 authors = ["Aggrathon <antonbjo@gmail.com>"]
 edition = "2018"
 description = "Move files from one directory to another and create a temporal hierarchy. The (creation) dates are based upon parsing filenames and reading file metadata. Files already existing in the destination (identified by filename) are left in their original location. This can, e.g., be used to import images from a camera (/phone)."
