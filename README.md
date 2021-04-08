@@ -12,37 +12,45 @@ To import all files from the input directory to the output directory use:
 To learn more about all options available use:  
 ```image_importer --help```
 
+
 ## Date Parsing
 
-By default the software first parses the filenames (first match), and then falls back to metadata (oldest date).
-With flags this can be changed to only consider filenames *or* metadata.
+By default the software parses both the filenames and metadata (oldest date).
+With flags this can be changed to only consider filenames or metadata.
 
-The 19th of May 2019 can be recognised, if the filenames have any of these patterns:
+The 19th of May 2019 can be recognised, if the filename contains any of these patterns:
 
-- \*2019-05-19\*
-- \*2019_05_19\*
-- \*20190519\*
-- \*2019 05 19\*
-- \*2019.05.19\*
-- \*19-05-2019\*
-- \*19_05_2019\*
-- \*19052019\*
-- \*19 05 2019\*
-- \*19.05.2019\*
+| Year-Month-Day | Day-Month-Year |
+|----------------|----------------|
+| \*2019-05-19\* | \*19-05-2019\* |
+| \*2019_05_19\* | \*19_05_2019\* |
+|  \*20190519\*  |  \*19052019\*  |
+| \*2019 05 19\* | \*19 05 2019\* |
 
 
 ## Temporal Structure
 
 When the files are moved to the output directory, a temporal hierarchy is created.
-The software comes with a couple of different options that can be toggled with a command line parameter:
+The names of the directories can be customised with command line arguments:
 
-| Directory Structure | Tag |
+| Directory Structure | Arguments |
 |---|---|
-| 2019 / 05 / image.jpg | Y_M |
-| 2019 / 2019-05 / image.jpg | Y_YM |
-| 2019-05 / image.jpg | YM |
-| 2019 / 05 May / image.jpg | Y_Meng |
-| 2019 / 05 Maj / image.jpg | Y_Mswe |
+| 2019 / 05 / image.jpg | |
+| 2019 / 2019-05 / image.jpg | -y |
+| 2019-05 / image.jpg | -f |
+| 2019 / 05 May / image.jpg | -m en |
+| 2019 / 2019-05 Maj / image.jpg | -y -m swe |
+
+
+## Example
+
+```{sh}
+mkdir example
+touch example/2005-07-14.txt
+image_importer example example --clean --flat
+rm example/2005-07/2005-07-14.txt
+rm -rf example
+```
 
 
 ## Executable
