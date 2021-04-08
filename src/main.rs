@@ -7,9 +7,10 @@ mod importer;
 #[cfg(test)]
 mod test;
 
+use std::path::PathBuf;
+
 use clap::{App, Arg};
 use importer::{clean_empty_dirs, move_and_sort, Config, Language};
-use std::path::PathBuf;
 
 fn main() {
     let config = parse_args();

@@ -1,11 +1,13 @@
-use chrono::{DateTime, Datelike, TimeZone, Utc};
-use regex::Regex;
-use std::{cmp::min, fs::rename};
 use std::{
+    cmp::min,
     ffi::OsStr,
+    fs::{copy, create_dir_all, metadata, remove_file, rename},
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
-use std::{fs::copy, fs::create_dir_all, fs::metadata, fs::remove_file, io::ErrorKind};
+
+use chrono::{DateTime, Datelike, TimeZone, Utc};
+use regex::Regex;
 use walkdir::{DirEntry, WalkDir};
 
 pub enum Language {
