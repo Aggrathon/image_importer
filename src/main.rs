@@ -13,9 +13,13 @@ use std::path::PathBuf;
 
 fn main() {
     let config = parse_args();
-    move_and_sort(&config);
-    if config.clean {
-        clean_empty_dirs(config.input, config.verbose)
+    if !config.input.exists() {
+        eprintln!("The source directory does not exist!");
+    } else {
+        move_and_sort(&config);
+        if config.clean {
+            clean_empty_dirs(config.input, config.verbose)
+        }
     }
 }
 
@@ -81,29 +85,28 @@ fn parse_args() -> Config {
             Arg::with_name("flat")
                 .short("f")
                 .long("flat")
-                .help("Flatten the directory structure (combine year and month)")
-                .requires("year"),
+                .help("Flatten the directory structure (combine year and month)"),
         )
         .arg(
-            Arg::with_name("INPUT")
+            Arg::with_name("input")
                 .takes_value(true)
                 .required(true)
                 .value_name("INPUT")
                 .help("The source directory"),
         )
         .arg(
-            Arg::with_name("OUPUT")
+            Arg::with_name("output")
                 .takes_value(true)
                 .required(true)
-                .value_name("OUPUT")
+                .value_name("OUTPUT")
                 .help("The destination directory"),
         )
         .get_matches();
     let meta = args.is_present("meta");
     let name = args.is_present("name");
     Config {
-        input: PathBuf::from(args.value_of("INPUT").unwrap()),
-        output: PathBuf::from(args.value_of("OUTPUT").unwrap()),
+        input: PathBuf::from(args.value_of("input").unwrap()),
+        output: PathBuf::from(args.value_of("output").unwrap()),
         verbose: args.is_present("verbose"),
         name: !meta || name,
         meta: !name || meta,
